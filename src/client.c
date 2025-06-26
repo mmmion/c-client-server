@@ -5,23 +5,11 @@
 #include <stdarg.h>
 #include <string.h>
 #include "log.h"
+#include "client.h"
+#include "client_cli.h"
 
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 8000
-
-typedef struct s_Client {
-    char ip[16];               // fixed size for IPv4 string
-    int port;
-    int sock;
-    struct sockaddr_in addr;
-} Client;
-
-/******************/
-/*   PROTOTYPES   */
-/******************/
-void input_ip(char *ip);
-void input_port(int *port);
-Client setup_client(void);
 
 /*******************/
 /* INPUT FUNCTIONS */
@@ -86,7 +74,7 @@ Client setup_client() {
     return new_client;
 }
 
-int send_message(Client *client, const char *msg) {
+int send_message_to_server(Client *client, const char *msg) {
     ssize_t sent = send(client->sock, msg, strlen(msg), 0);
     if (sent < 0) {
         log_error(CLIENT, "Failed to send message");
@@ -114,6 +102,7 @@ void close_client(Client *client) {
 /*****************/
 /* MAIN FUNCTION */
 /*****************/
+
 int main() {
     char buffer[1024];
     Client client = setup_client();
@@ -131,17 +120,21 @@ int main() {
         exit(1);
     }
     log_msg(CLIENT, "Connected to server at %s:%d", client.ip, client.port);
+    while (1) {
+        if (handle_input(&client) == -1)
+            break;
 
-    
-    ssize_t bytes_received;
-    while ((bytes_received = receive_message(&client, buffer, sizeof(buffer))) > 0) {
-        log_msg(CLIENT, "Received from server: %s", buffer);
-    }
-
-    if (bytes_received == 0) {
-        log_msg(CLIENT, "Server closed the connection.");
-    } else {
-        log_error(CLIENT, "Error receiving data.");
+        // Try to receive any messages from server without blocking
+        ssize_t bytes_received = recv(client.sock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+        if (bytes_received > 0) {
+            buffer[bytes_received] = '\0';
+            log_msg(CLIENT, "Received from server: %s", buffer);
+        } else if (bytes_received == 0) {
+            log_msg(CLIENT, "Server closed the connection.");
+            break;
+        } else {
+            // bytes_received < 0 and errno == EWOULDBLOCK or EAGAIN means no data, ignore
+        }
     }
 
     close_client(&client);

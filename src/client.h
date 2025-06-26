@@ -14,8 +14,8 @@ typedef struct s_Client {
 } Client;
 
 Client setup_client(void);
-int send_message(Client *client, const char *msg);
+int send_message_to_server(Client *client, const char *msg);
 ssize_t receive_message(Client *client, char *buffer, size_t size);
 void close_client(Client *client);
 
-#endif // CLIENT_H
+#endif

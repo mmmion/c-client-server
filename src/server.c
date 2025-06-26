@@ -74,7 +74,7 @@ Server setup_server() {
     return new_server;
 }
 
-int send_message(int client_socket, const char *msg) {
+int send_message_to_client(int client_socket, const char *msg) {
     ssize_t sent = send(client_socket, msg, strlen(msg), 0);
     if (sent < 0) {
         log_error(SERVER, "Failed to send message");
@@ -116,19 +116,18 @@ int main() {
     }
     log_msg(SERVER, "Listening...");
 
-    struct sockaddr_in client_addrs[MAX_CLIENTS];
-    int client_sockets[MAX_CLIENTS]; 
-    int clients = 0;
+    ClientInfo clients[MAX_CLIENTS];
+    int clients_connected = 0;
 
     while (1) {
-        socklen_t addr_size = sizeof(client_addrs[clients]);
-        int client_socket = accept(server.server_socket, (struct sockaddr*)&client_addrs[clients], &addr_size);
+        socklen_t addr_size = sizeof(clients[clients_connected].addr);
+        int client_socket = accept(server.server_socket, (struct sockaddr*)&clients[clients_connected].addr, &addr_size);
         if (client_socket < 0) {
             log_error(SERVER, "Accept failed");
             continue;
         }
 
-        if (clients == MAX_CLIENTS) {
+        if (clients_connected == MAX_CLIENTS) {
             log_msg(SERVER, "Server is full, cannot accept more clients now.");
 
             const char *msg = "503 Server Full\n";
@@ -140,15 +139,17 @@ int main() {
         }
 
         log_msg(SERVER, "Client connected.");
-        send_message(client_socket, "Welcome client.");
+        clients[clients_connected].privilege = USER;
+        send_message_to_client(client_socket, "Welcome client.");
 
 
-        client_sockets[clients] = client_socket;
-        clients++;
+        clients[clients_connected].socket = client_socket;
+        clients[clients_connected].id = clients_connected+1;
+        clients_connected++;
     }
     
-    for (int i = 0; i < clients; i++) {
-        close(client_sockets[i]);
+    for (int i = 0; i < clients_connected; i++) {
+        close(clients[i].socket);
     }
     close(server.server_socket);
     return 0;

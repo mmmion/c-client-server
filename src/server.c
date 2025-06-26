@@ -8,6 +8,7 @@
 
 #define DEFAULT_IP "127.0.0.1"
 #define DEFAULT_PORT 8000
+#define MAX_CLIENTS 1
 
 typedef struct s_Server {
     int port; 
@@ -15,6 +16,7 @@ typedef struct s_Server {
     int server_socket;
     struct sockaddr_in server_addr;
     socklen_t addr_size;
+    
 } Server;
 
 /******************/
@@ -95,7 +97,6 @@ Server setup_server() {
 /* MAIN FUNCTION */
 /*****************/
 int main() {
-    char buffer[1024];
     Server server = setup_server();
 
     server.server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -112,40 +113,46 @@ int main() {
     }
     log_msg(SERVER, "Bind to the port number: %d", server.port);
 
-    if (listen(server.server_socket, 5) < 0) {
+    if (listen(server.server_socket, MAX_CLIENTS) < 0) {
         log_error(SERVER, "Listen failed");
         close(server.server_socket);
         exit(1);
     }
     log_msg(SERVER, "Listening...");
 
-    while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t addr_size = sizeof(client_addr);
+    struct sockaddr_in client_addrs[MAX_CLIENTS];
+    int client_sockets[MAX_CLIENTS]; 
+    int clients = 0;
 
-        int client_socket = accept(server.server_socket, (struct sockaddr*)&client_addr, &addr_size);
+    while (1) {
+        socklen_t addr_size = sizeof(client_addrs[clients]);
+        int client_socket = accept(server.server_socket, (struct sockaddr*)&client_addrs[clients], &addr_size);
         if (client_socket < 0) {
             log_error(SERVER, "Accept failed");
             continue;
         }
-        log_msg(SERVER, "Client connected.");
 
-        int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
-        while (bytes_received > 0) 
-        {
-            bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
-            log_msg(SERVER, "Received %d bytes", bytes_received);
+        if (clients == MAX_CLIENTS) {
+            log_msg(SERVER, "Server is full, cannot accept more clients now.");
+
+            const char *msg = "503 Server Full\n";
+            send(client_socket, msg, strlen(msg), 0);
+            log_msg(SERVER, "Server is full, rejected connection.");
+            close(client_socket); 
+            sleep(1);
+            continue;
         }
 
-        if (bytes_received == 0) {
-            log_msg(SERVER, "Client disconnected.");
-        } else if (bytes_received < 0) {
-            log_msg(SERVER, "Recv error.");
-        } 
+        log_msg(SERVER, "Client connected.");
 
-        close(client_socket); 
+
+        client_sockets[clients] = client_socket;
+        clients++;
     }
-
+    
+    for (int i = 0; i < clients; i++) {
+        close(client_sockets[i]);
+    }
     close(server.server_socket);
     return 0;
 }

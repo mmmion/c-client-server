@@ -107,17 +107,17 @@ int main() {
     }
     log_msg(CLIENT, "Connected to server at %s:%d", client.ip, client.port);
 
-    // Loop to receive data until the server disconnects
-    int bytes_received;
-    while ((bytes_received = recv(client.sock, buffer, sizeof(buffer)-1, 0)) > 0) {
-        buffer[bytes_received] = '\0';
-        log_msg(CLIENT, "Received %d bytes: %s", bytes_received, buffer);
+    
+    ssize_t bytes_received;
+    while ((bytes_received = recv(client.sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
+        buffer[bytes_received] = '\0'; 
+        log_msg(CLIENT, "Received from server: %s", buffer);
     }
 
     if (bytes_received == 0) {
         log_msg(CLIENT, "Server closed the connection.");
-    } else if (bytes_received < 0) {
-        log_error(CLIENT, "Recv error.");
+    } else {
+        log_error(CLIENT, "Error receiving data.");
     }
 
     close(client.sock);

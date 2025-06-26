@@ -1,7 +1,7 @@
-#include "client_cli.h"
 #include <stdio.h>
 #include <string.h>
 
+#include "client_cli.h"
 #include "log.h"
 
 void cmd_help(const char *args) {
@@ -14,7 +14,7 @@ void cmd_help(const char *args) {
 }
 
 void cmd_echo(const char *args) {
-    log("Echo: %s\n", args);
+    printf("Echo: %s\n", args);
 }
 
 void cmd_admin(const char *args) {

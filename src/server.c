@@ -4,28 +4,9 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+
 #include "log.h"
-
-#define DEFAULT_IP "127.0.0.1"
-#define DEFAULT_PORT 8000
-#define MAX_CLIENTS 1
-
-typedef struct s_Server {
-    int port; 
-    char ip[16];               // Store IP as fixed size array for safety
-    int server_socket;
-    struct sockaddr_in server_addr;
-    socklen_t addr_size;
-    
-} Server;
-
-/******************/
-/*   PROTOTYPES   */
-/******************/
-void input_ip(char *ip, size_t ip_size);
-void input_port(int *port);
-
-Server setup_server(void);
+#include "server.h"
 
 /*******************/
 /* INPUT FUNCTIONS */
@@ -93,6 +74,21 @@ Server setup_server() {
     return new_server;
 }
 
+int send_message(int client_socket, const char *msg) {
+    ssize_t sent = send(client_socket, msg, strlen(msg), 0);
+    if (sent < 0) {
+        log_error(SERVER, "Failed to send message");
+        return -1;
+    }
+    return 0;
+}
+
+void close_clients(int *client_sockets, int count) {
+    for (int i = 0; i < count; i++) {
+        close(client_sockets[i]);
+    }
+}
+
 /*****************/
 /* MAIN FUNCTION */
 /*****************/
@@ -144,6 +140,7 @@ int main() {
         }
 
         log_msg(SERVER, "Client connected.");
+        send_message(client_socket, "Welcome client.");
 
 
         client_sockets[clients] = client_socket;

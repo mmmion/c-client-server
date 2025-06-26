@@ -86,6 +86,31 @@ Client setup_client() {
     return new_client;
 }
 
+int send_message(Client *client, const char *msg) {
+    ssize_t sent = send(client->sock, msg, strlen(msg), 0);
+    if (sent < 0) {
+        log_error(CLIENT, "Failed to send message");
+        return -1;
+    }
+    return 0;
+}
+
+ssize_t receive_message(Client *client, char *buffer, size_t size) {
+    ssize_t bytes_received = recv(client->sock, buffer, size - 1, 0);
+    if (bytes_received > 0) {
+        buffer[bytes_received] = '\0';
+    }
+    return bytes_received;
+}
+
+void close_client(Client *client) {
+    if (client->sock >= 0) {
+        close(client->sock);
+        client->sock = -1;
+    }
+}
+
+
 /*****************/
 /* MAIN FUNCTION */
 /*****************/
@@ -102,15 +127,14 @@ int main() {
 
     if (connect(client.sock, (struct sockaddr*)&client.addr, sizeof(client.addr)) < 0) {
         log_error(CLIENT, "Connect failed");
-        close(client.sock);
+        close_client(&client);
         exit(1);
     }
     log_msg(CLIENT, "Connected to server at %s:%d", client.ip, client.port);
 
     
     ssize_t bytes_received;
-    while ((bytes_received = recv(client.sock, buffer, sizeof(buffer) - 1, 0)) > 0) {
-        buffer[bytes_received] = '\0'; 
+    while ((bytes_received = receive_message(&client, buffer, sizeof(buffer))) > 0) {
         log_msg(CLIENT, "Received from server: %s", buffer);
     }
 
@@ -120,6 +144,6 @@ int main() {
         log_error(CLIENT, "Error receiving data.");
     }
 
-    close(client.sock);
+    close_client(&client);
     return 0;
 }

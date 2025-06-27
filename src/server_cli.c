@@ -40,10 +40,17 @@ void server_cmd_kick(const char *args, ClientInfo *clients, int count) {
     log_msg(SERVER, "Client with ID %d not found", id);
 }
 
+void server_cmd_broadcast(const char *args, ClientInfo *clients, int count) {
+    for (int i = 0; i < count; i++) {
+        send_message_to_client(clients[i].socket, args);
+    }
+}
+
 const ServerCommand server_commands[SERVER_COMMANDS] = {
     {"help", server_cmd_help},
     {"list", server_cmd_list},
     {"kick", server_cmd_kick},
+    {"broadcast", server_cmd_broadcast}
 };
 
 static const char *skip_spaces(const char *str) {
@@ -52,12 +59,7 @@ static const char *skip_spaces(const char *str) {
 }
 
 void handle_server_cli(const char *input, ClientInfo *clients, int client_count) {
-    if (input[0] != PREFIX[0]) {
-        log_msg(COMMAND, "Not a server command.");
-        return;
-    }
-
-    const char *command_line = input + 1;
+    const char *command_line = input;
 
     char cmd_name[20] = {0};
     int i = 0;

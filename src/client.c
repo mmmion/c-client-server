@@ -110,11 +110,12 @@ void* receiver_thread(void* arg) {
         ssize_t bytes_received = recv(client->sock, buffer, sizeof(buffer) - 1, 0);
         if (bytes_received > 0) {
             buffer[bytes_received] = '\0';
-            printf("\n");
+
             log_msg(SERVER, "%s", buffer);
         } else if (bytes_received == 0) {
             log_msg(CLIENT, "Server closed the connection.");
-            exit(0);  // Terminate entire program
+            close_client(client);
+            exit(0);
         } else {
             perror("recv");
             exit(1);
@@ -129,6 +130,7 @@ void* receiver_thread(void* arg) {
 /* MAIN FUNCTION */
 /*****************/
 int main() {
+    MAIN_SOURCE = "CLIENT";
     Client client = setup_client();
 
     client.sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -144,6 +146,7 @@ int main() {
         exit(1);
     }
     log_msg(CLIENT, "Connected to server at %s:%d", client.ip, client.port);
+    log_msg(COMMAND, "Press '/' and 'Enter' to open CLI, use 'help' in CLI to help you.");
     pthread_t recv_thread;
 
     if (pthread_create(&recv_thread, NULL, receiver_thread, &client) != 0) {

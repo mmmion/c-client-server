@@ -33,7 +33,7 @@ static const char *skip_spaces(const char *str) {
 }
 
 int handle_input(Client *client) {
-    static int cli_mode = 0;  // 0 = chat mode, 1 = CLI mode
+    static int cli_mode = 0;  
     char input_line[1024];
 
     if (cli_mode) {
@@ -45,21 +45,17 @@ int handle_input(Client *client) {
         return -1;
     }
 
-    input_line[strcspn(input_line, "\n")] = 0;  // Remove newline
+    input_line[strcspn(input_line, "\n")] = 0; 
 
-    // === CLI open trigger ===
     if (!cli_mode && input_line[0] == PREFIX[0] && input_line[1] == '\0') {
         cli_mode = 1;
         return 0;
     }
 
     if (cli_mode) {
-        // Run command (without checking for prefix again)
-
         handle_client_cli(input_line);
-        cli_mode = 0;  // Exit CLI mode after command
+        cli_mode = 0;  
     } else {
-        // Normal chat message
         if (send_message_to_server(client, input_line) < 0) {
             log_error(CLIENT, "Failed to send message");
             return -1;
@@ -71,10 +67,8 @@ int handle_input(Client *client) {
     return 0;
 }
 void handle_client_cli(const char *input) {
-    // Remove prefix
     const char *command_line = input;
 
-    // Extract command name
     char cmd_name[20] = {0};
     int i = 0;
     while (command_line[i] && command_line[i] != ' ' && i < 19) {
@@ -87,7 +81,7 @@ void handle_client_cli(const char *input) {
     args = skip_spaces(args);
 
     for (int c = 0; c < N_COMMANDS; c++) {
-        if (commands[c].handler == NULL) continue; // skip empty slots
+        if (commands[c].handler == NULL) continue;
         if (strcmp(commands[c].name, cmd_name) == 0) {
             commands[c].handler(args);
             return;

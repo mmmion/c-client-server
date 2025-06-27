@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <pthread.h>
 #include "log.h"
 #include "client.h"
 #include "client_cli.h"
@@ -98,13 +99,36 @@ void close_client(Client *client) {
     }
 }
 
+/*******************/
+/* THREAD FUNCTION */
+/*******************/
+void* receiver_thread(void* arg) {
+    Client* client = (Client*)arg;
+    char buffer[1024];
+
+    while (1) {
+        ssize_t bytes_received = recv(client->sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received > 0) {
+            buffer[bytes_received] = '\0';
+            printf("\n");
+            log_msg(SERVER, "%s", buffer);
+        } else if (bytes_received == 0) {
+            log_msg(CLIENT, "Server closed the connection.");
+            exit(0);  // Terminate entire program
+        } else {
+            perror("recv");
+            exit(1);
+        }
+    }
+
+    return NULL;
+}
+
 
 /*****************/
 /* MAIN FUNCTION */
 /*****************/
-
 int main() {
-    char buffer[1024];
     Client client = setup_client();
 
     client.sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -120,22 +144,21 @@ int main() {
         exit(1);
     }
     log_msg(CLIENT, "Connected to server at %s:%d", client.ip, client.port);
+    pthread_t recv_thread;
+
+    if (pthread_create(&recv_thread, NULL, receiver_thread, &client) != 0) {
+        log_error(CLIENT, "Failed to create receiver thread");
+        close_client(&client);
+        exit(1);
+    }
+
     while (1) {
         if (handle_input(&client) == -1)
             break;
-
-        // Try to receive any messages from server without blocking
-        ssize_t bytes_received = recv(client.sock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
-        if (bytes_received > 0) {
-            buffer[bytes_received] = '\0';
-            log_msg(CLIENT, "Received from server: %s", buffer);
-        } else if (bytes_received == 0) {
-            log_msg(CLIENT, "Server closed the connection.");
-            break;
-        } else {
-            // bytes_received < 0 and errno == EWOULDBLOCK or EAGAIN means no data, ignore
-        }
     }
+
+    pthread_cancel(recv_thread);  
+    pthread_join(recv_thread, NULL);
 
     close_client(&client);
     return 0;

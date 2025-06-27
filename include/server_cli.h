@@ -5,7 +5,7 @@
 #include "server.h"
 
 #define PREFIX "/"
-#define SERVER_COMMANDS 3
+#define SERVER_COMMANDS 4
 
 typedef void (*ServerCommandHandler)(const char *args, ClientInfo *clients, int count);
 

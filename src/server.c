@@ -9,7 +9,6 @@
 #include "log.h"
 #include "server.h"
 #include "server_cli.h"
-
 int clients_connected = 0;
 
 void input_ip(char *ip, size_t ip_size) {
@@ -96,13 +95,16 @@ void* client_receiver_thread(void* arg) {
         ssize_t bytes = recv(client->socket, buffer, sizeof(buffer) - 1, 0);
         if (bytes > 0) {
             buffer[bytes] = '\0';
+
             log_msg(CLIENT, "Client %d: %s", client->id, buffer);
+            fflush(stdout);  
         } else if (bytes == 0) {
-            log_msg(SERVER, "Client %d disconnected.", client->id);
+            log_msg(SERVER, "Client %d disconnected.", client->id); 
             close(client->socket);
             pthread_exit(NULL);
         } else {
             perror("recv");
+            clients_connected--;
             close(client->socket);
             pthread_exit(NULL);
         }
@@ -110,23 +112,56 @@ void* client_receiver_thread(void* arg) {
     return NULL;
 }
 
-void* server_cli_thread(void* arg) {
-    ClientInfo* clients = (ClientInfo*)arg;
-    while (1) {
-        char input[1024];
-        printf("[Server CLI] > ");
-        fflush(stdout);
-        if (fgets(input, sizeof(input), stdin) == NULL)
-            continue;
-        input[strcspn(input, "\n")] = 0;
+typedef struct {
+    Server* server;
+    ClientInfo* clients;
+} AcceptArgs;
 
-        handle_server_cli(input, clients, clients_connected);
+void* accept_clients_loop(void* arg) {
+    AcceptArgs* args = (AcceptArgs*)arg;
+    Server* server = args->server;
+    ClientInfo* clients = args->clients;
+
+    while (1) {
+        socklen_t addr_size = sizeof(clients[clients_connected].addr);
+        int client_socket = accept(server->server_socket,
+                                   (struct sockaddr*)&clients[clients_connected].addr,
+                                   &addr_size);
+        if (client_socket < 0) {
+            log_error(SERVER, "Accept failed");
+            continue;
+        }
+
+        if (clients_connected == MAX_CLIENTS) {
+            log_msg(SERVER, "Server is full, cannot accept more clients now.");
+            const char *msg = "503 Server Full\n";
+            send(client_socket, msg, strlen(msg), 0);
+            close(client_socket);
+            continue;
+        }
+
+        clients[clients_connected].socket = client_socket;
+        clients[clients_connected].id = clients_connected + 1;
+        clients[clients_connected].privilege = USER;
+
+        pthread_t client_thread;
+        pthread_create(&client_thread, NULL, client_receiver_thread, &clients[clients_connected]);
+
+        send_message_to_client(client_socket, "Welcome client.");
+        log_msg(SERVER, "Client %d connected.", clients[clients_connected].id);
+
+        clients_connected++;
     }
+
     return NULL;
 }
 
+
 int main() {
+    MAIN_SOURCE = "SERVER";
     Server server = setup_server();
+    ClientInfo clients[MAX_CLIENTS];
+    int prompt_needed = 0;
 
     server.server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server.server_socket < 0) {
@@ -148,43 +183,42 @@ int main() {
         exit(1);
     }
     log_msg(SERVER, "Listening...");
+    log_msg(COMMAND, "Press '/' and 'Enter' to open CLI, use 'help' in CLI to help you.");
 
-    ClientInfo clients[MAX_CLIENTS];
+    AcceptArgs args = {
+        .server = &server,
+        .clients = clients
+    };
 
-    pthread_t cli_thread;
-    pthread_create(&cli_thread, NULL, server_cli_thread, clients);
-
+    pthread_t accept_thread;
+    pthread_create(&accept_thread, NULL, accept_clients_loop, &args);
+    
+    // Main CLI loop
     while (1) {
-        socklen_t addr_size = sizeof(clients[clients_connected].addr);
-        int client_socket = accept(server.server_socket, (struct sockaddr*)&clients[clients_connected].addr, &addr_size);
-        if (client_socket < 0) {
-            log_error(SERVER, "Accept failed");
-            continue;
+        char input[1024];
+
+        if (prompt_needed) {
+            new_cli_input();
         }
 
-        if (clients_connected == MAX_CLIENTS) {
-            log_msg(SERVER, "Server is full, cannot accept more clients now.");
-            const char *msg = "503 Server Full\n";
-            send(client_socket, msg, strlen(msg), 0);
-            close(client_socket);
+        if (fgets(input, sizeof(input), stdin) == NULL)
             continue;
+
+        input[strcspn(input, "\n")] = 0;
+
+        if (input[0] == PREFIX[0] && input[1] == '\0') {
+            prompt_needed = 1;
+            continue;
+        } 
+
+        if (prompt_needed == 1) {
+            handle_server_cli(input, clients, clients_connected);
         }
 
-        clients[clients_connected].socket = client_socket;
-        clients[clients_connected].id = clients_connected + 1;
-        clients[clients_connected].privilege = USER;
-        pthread_t client_thread;
-        pthread_create(&client_thread, NULL, client_receiver_thread, &clients[clients_connected]);
-
-        send_message_to_client(client_socket, "Welcome client.\n");
-        log_msg(SERVER, "Client %d connected.", clients[clients_connected].id);
-
-        clients_connected++;
+        prompt_needed = 0; 
     }
 
-    for (int i = 0; i < clients_connected; i++) {
-        close(clients[i].socket);
-    }
+
     close(server.server_socket);
     return 0;
 }

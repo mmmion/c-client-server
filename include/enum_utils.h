@@ -1,6 +1,8 @@
 #ifndef ENUM_UTILS_H
 #define ENUM_UTILS_H
 
+#include <string.h>
+
 typedef enum {
     SERVER,
     CLIENT,
@@ -24,6 +26,16 @@ static inline const char* logsource_to_string(LogSource source) {
         default:       return "UNKNOWN";
     }
 }
+
+static inline LogSource string_to_logsource(const char* str) {
+    if (strcmp(str, "SERVER") == 0) return SERVER;
+    else if (strcmp(str, "CLIENT") == 0) return CLIENT;
+    else if (strcmp(str, "INPUT") == 0) return INPUT;
+    else if (strcmp(str, "COMMAND") == 0) return COMMAND;
+    else if (strcmp(str, "OTHER") == 0) return OTHER;
+    else return -1; 
+}
+
 
 static inline const char* privilege_to_string(UserPrivilege p) {
     switch (p) {

@@ -5,8 +5,7 @@
 #include "client.h"
 
 #define PREFIX "/"
-#define N_COMMANDS 10
-#define AVAILABLE_COMMANDS 3 // Change every time new command gets added
+#define N_COMMANDS 3
 
 typedef void (*CommandHandler)(const char *args); // Pointer to a void function that takes args { }
 

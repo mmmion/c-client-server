@@ -3,6 +3,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include "termcolor_c.h" 
+
+const char* MAIN_SOURCE = "UNKNOWN";
+
 static const char *get_source_name(LogSource source) {
     switch (source) {
         case SERVER: return "SERVER";
@@ -39,9 +42,22 @@ void print_colored_label(LogSource source, FILE *stream) {
     fputs(" ", stream);
 }
 
+void new_cli_input() {
+    const char *str = MAIN_SOURCE;  
+    LogSource source = string_to_logsource(str);
+
+    fflush(stdin);
+    printf("\r\033[K");
+    print_colored_label(source, stdout);
+    printf("> ");
+    fflush(stdout);
+}
+
 void log_msg(LogSource source, const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
+
+    printf("\r\033[K");
 
     print_colored_label(source, stdout);
     vprintf(fmt, args);
@@ -50,6 +66,7 @@ void log_msg(LogSource source, const char *fmt, ...) {
     reset_colors(stdout);
     va_end(args);
 }
+
 
 void log_error(LogSource source, const char *fmt, ...) {
     char buffer[1024];

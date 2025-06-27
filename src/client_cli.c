@@ -8,7 +8,7 @@ void cmd_help(const char *args) {
     (void)args;
     size_t i;
     log_msg(COMMAND, "Available commands:");
-    for (i=0; i<AVAILABLE_COMMANDS; i++) {
+    for (i=0; i<N_COMMANDS; i++) {
         log_msg(COMMAND, "- Name: %s : Require : %s", commands[i].name, privilege_to_string(commands[i].requirement));
     }
 }
@@ -33,37 +33,46 @@ static const char *skip_spaces(const char *str) {
 }
 
 int handle_input(Client *client) {
+    static int cli_mode = 0;  // 0 = chat mode, 1 = CLI mode
     char input_line[1024];
 
-    print_colored_label(CLIENT, stdout);
-    printf("Enter message or command: ");
+    if (cli_mode) {
+        new_cli_input();
+    }
+
     if (!fgets(input_line, sizeof(input_line), stdin)) {
         log_msg(CLIENT, "Error reading input");
         return -1;
     }
+
     input_line[strcspn(input_line, "\n")] = 0;  // Remove newline
-    if (input_line[0] == PREFIX[0]) {
-        handle_client_cli(input_line);
+
+    // === CLI open trigger ===
+    if (!cli_mode && input_line[0] == PREFIX[0] && input_line[1] == '\0') {
+        cli_mode = 1;
         return 0;
+    }
+
+    if (cli_mode) {
+        // Run command (without checking for prefix again)
+
+        handle_client_cli(input_line);
+        cli_mode = 0;  // Exit CLI mode after command
     } else {
+        // Normal chat message
         if (send_message_to_server(client, input_line) < 0) {
             log_error(CLIENT, "Failed to send message");
             return -1;
         }
     }
 
+    cli_mode = 0;
+
     return 0;
 }
-
 void handle_client_cli(const char *input) {
-    // Check prefix
-    if (input[0] != PREFIX[0]) {
-        log_msg(COMMAND, "Not a command.\n");
-        return;
-    }
-
     // Remove prefix
-    const char *command_line = input + 1;
+    const char *command_line = input;
 
     // Extract command name
     char cmd_name[20] = {0};
